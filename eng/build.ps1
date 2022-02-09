@@ -722,6 +722,7 @@ try {
 
   if ($restore) {
     &(Ensure-DotNetSdk) tool restore
+    &(Ensure-DotNetSdk) workload install macos # TODO: Specify version
   }
 
   try

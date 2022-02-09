@@ -295,6 +295,7 @@ fi
 InitializeDotNetCli $install
 if [[ "$restore" == true && "$source_build" != true ]]; then
   dotnet tool restore
+  dotnet workload install macos # TODO: Specify version
 fi
 
 bootstrap_dir=""

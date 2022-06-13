@@ -170,7 +170,7 @@ Add-TargetFramework "Net461" '$(PkgMicrosoft_NETFramework_ReferenceAssemblies_ne
 
 Add-TargetFramework "MicrosoftCSharp" '$(NuGetPackageRoot)\microsoft.csharp\$(MicrosoftCSharpVersion)' @(
   'Netstandard10#ref\netstandard1.0\Microsoft.CSharp.dll'
-  'Netstandard13Lib#lib\netstandard1.3\Microsoft.CSharp.dll'
+  'Netstandard13Lib#lib\netstandard2.0\Microsoft.CSharp.dll'
 )
 
 Add-TargetFramework "MicrosoftVisualBasic" '$(NuGetPackageRoot)\microsoft.visualbasic\$(MicrosoftVisualBasicVersion)\ref' @(

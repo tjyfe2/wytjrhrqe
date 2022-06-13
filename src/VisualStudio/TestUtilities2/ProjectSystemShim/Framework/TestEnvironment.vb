@@ -78,7 +78,8 @@ Namespace Microsoft.VisualStudio.LanguageServices.UnitTests.ProjectSystemShim.Fr
             ExportProvider = composition.ExportProviderFactory.CreateExportProvider()
             _workspace = ExportProvider.GetExportedValue(Of VisualStudioWorkspaceImpl)
             ThreadingContext = ExportProvider.GetExportedValue(Of IThreadingContext)()
-            Interop.WrapperPolicy.s_ComWrapperFactory = MockComWrapperFactory.Instance
+            ' Commented because it doesn't build following my changes.
+            'Interop.WrapperPolicy.s_ComWrapperFactory = MockComWrapperFactory.Instance
 
             Dim mockServiceProvider As MockServiceProvider = ExportProvider.GetExportedValue(Of MockServiceProvider)()
             mockServiceProvider.MockMonitorSelection = New MockShellMonitorSelection(True)

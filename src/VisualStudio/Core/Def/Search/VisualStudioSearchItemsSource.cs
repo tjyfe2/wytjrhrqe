@@ -18,6 +18,8 @@ using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Shared.Collections;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
+using Microsoft.CodeAnalysis.Shared.Utilities;
+using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Search.Data;
 using Microsoft.VisualStudio.Utilities;
 using Roslyn.Utilities;
@@ -30,6 +32,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
         private readonly IThreadingContext _threadingContext;
         private readonly IUIThreadOperationExecutor _threadOperationExecutor;
         private readonly IAsynchronousOperationListener _asyncListener;
+
+        private IStreamingProgressTracker? _progress_doNotAccessDirectly;
+        private int _remainingProgressItems;
 
         public VisualStudioSearchItemsSource(
             Workspace workspace,
@@ -61,6 +66,12 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
 
         public async Task PerformSearchAsync(ISearchQuery searchQuery, ISearchCallback searchCallback, CancellationToken cancellationToken)
         {
+            _progress_doNotAccessDirectly = new StreamingProgressTracker((current, maximum, ct) =>
+            {
+                searchCallback.ReportProgress(current, maximum);
+                return new ValueTask();
+            });
+
             var docTrackingService = _workspace.Services.GetRequiredService<IDocumentTrackingService>();
 
             // If the workspace is tracking documents, use that to prioritize our search
@@ -130,11 +141,14 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
             finally
             {
                 // Ensure that we actually complete all our remaining progress items so that the progress bar completes.
-                //await ProgressItemsCompletedAsync(_remainingProgressItems, cancellationToken).ConfigureAwait(false);
-                //Debug.Assert(_remainingProgressItems == 0);
+                await ProgressItemsCompletedAsync(_remainingProgressItems, cancellationToken).ConfigureAwait(false);
+                Debug.Assert(_remainingProgressItems == 0);
 
                 // Pass along isFullyLoaded so that the UI can show indication to users that results may be incomplete.
-                //_callback.Done(isFullyLoaded);
+                if (!isFullyLoaded)
+                {
+                    searchCallback.ReportIncomplete(IncompleteReason.WorkspaceLoading);
+                }
             }
         }
 
@@ -162,9 +176,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
             if (isFullyLoaded)
             {
                 // We may do up to two passes.  One for loaded docs.  One for source generated docs.
-                //await AddProgressItemsAsync(
-                //    projectCount * ((searchRegularDocuments ? 1 : 0) + (searchGeneratedDocuments ? 1 : 0)),
-                //    cancellationToken).ConfigureAwait(false);
+                await AddProgressItemsAsync(
+                    projectCount * ((searchRegularDocuments ? 1 : 0) + (searchGeneratedDocuments ? 1 : 0)),
+                    cancellationToken).ConfigureAwait(false);
 
                 if (searchRegularDocuments)
                     await SearchFullyLoadedProjectsAsync(searchQuery, activeDocument, visibleDocuments, kinds, orderedProjects, seenItems, host, searchCallback, cancellationToken).ConfigureAwait(false);
@@ -179,9 +193,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
                 if (searchRegularDocuments)
                 {
                     // We do at least two passes.  One for cached docs.  One for normal docs.
-                    //await AddProgressItemsAsync(
-                    //    projectCount * 2,
-                    //    cancellationToken).ConfigureAwait(false);
+                    await AddProgressItemsAsync(
+                        projectCount * 2,
+                        cancellationToken).ConfigureAwait(false);
 
                     await SearchCachedDocumentsAsync(searchQuery, activeDocument, visibleDocuments, kinds, orderedProjects, seenItems, host, searchCallback, cancellationToken).ConfigureAwait(false);
 
@@ -336,7 +350,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
                 finally
                 {
                     // after each project is searched, increment our progress.
-                    //await ProgressItemsCompletedAsync(count: 1, cancellationToken).ConfigureAwait(false);
+                    await ProgressItemsCompletedAsync(count: 1, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -423,6 +437,27 @@ namespace Microsoft.VisualStudio.LanguageServices.Search
                             host,
                             searchCallback,
                             cancellationToken);
+        }
+
+        private async Task ProgressItemsCompletedAsync(int count, CancellationToken cancellationToken)
+        {
+            var newValue = Interlocked.Add(ref _remainingProgressItems, -count);
+            Debug.Assert(newValue >= 0);
+            if (_progress_doNotAccessDirectly != null)
+            {
+                await _progress_doNotAccessDirectly.ItemsCompletedAsync(count, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private async Task AddProgressItemsAsync(int count, CancellationToken cancellationToken)
+        {
+            Debug.Assert(count >= 0);
+            Debug.Assert(_remainingProgressItems >= 0);
+            Interlocked.Add(ref _remainingProgressItems, count);
+            if (_progress_doNotAccessDirectly != null)
+            {
+                await _progress_doNotAccessDirectly.AddItemsAsync(count, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 }

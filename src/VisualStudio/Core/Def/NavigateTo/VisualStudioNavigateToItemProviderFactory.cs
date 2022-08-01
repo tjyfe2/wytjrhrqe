@@ -14,6 +14,7 @@ using Microsoft.VisualStudio.Utilities;
 namespace Microsoft.VisualStudio.LanguageServices.Implementation.NavigateTo
 {
     [Export(typeof(INavigateToItemProviderFactory)), Shared]
+    [OnlyNavigateToSupport]
     internal sealed class VisualStudioNavigateToItemProviderFactory : INavigateToItemProviderFactory
     {
         private readonly VisualStudioWorkspace _workspace;
